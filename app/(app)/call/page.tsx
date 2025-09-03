@@ -1,59 +1,49 @@
 'use client'
 import { useEffect, useState } from 'react'
+import VideoGrid from '@/components/VideoGrid'
+
+export const dynamic = 'force-dynamic'
 
 export default function CallPage() {
-  const [counter, setCounter] = useState(45)
-  const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
-  const roomName = params.get('room') ?? ''
-
+  const [roomName, setRoomName] = useState<string>('')
+  const [partnerId, setPartnerId] = useState<string>('')
   useEffect(() => {
-    let mounted = true
-    let room: import('livekit-client').Room | undefined
-
-    ;(async () => {
-      try {
-        const res = await fetch('/api/livekit/token', { method: 'POST', body: JSON.stringify({ room: roomName }) })
-        const { token } = await res.json()
-
-        const { Room, createLocalVideoTrack, createLocalAudioTrack } = await import('livekit-client')
-        room = new Room()
-        // NEXT_PUBLIC_LIVEKIT_WS_URL must be set
-        await room.connect(process.env.NEXT_PUBLIC_LIVEKIT_WS_URL as string, token)
-
-        const cam = await createLocalVideoTrack()
-        const mic = await createLocalAudioTrack()
-        await room.localParticipant.publishTrack(cam)
-        await room.localParticipant.publishTrack(mic)
-
-        const id = setInterval(() => {
-          if (!mounted) return
-          setCounter((c) => (c > 0 ? c - 1 : 0))
-        }, 1000)
-
-        const { RoomEvent } = await import('livekit-client')
-        room.on(RoomEvent.Disconnected, () => clearInterval(id))
-      } catch (e) {
-        console.error(e)
-      }
-    })()
-
-    return () => {
-      mounted = false
-      try {
-        room?.disconnect?.()
-      } catch {}
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search)
+      setRoomName(p.get('room') ?? '')
+      setPartnerId(p.get('to') ?? '')
     }
-  }, [roomName])
+  }, [])
+  const [counter, setCounter] = useState(45)
 
   useEffect(() => {
-    if (counter === 0) window.location.href = '/after'
-  }, [counter])
+    const id = setInterval(() => setCounter((c) => (c > 0 ? c - 1 : 0)), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (counter === 0) {
+      const url = `/after?to=${encodeURIComponent(partnerId)}`
+      window.location.replace(url)
+    }
+  }, [counter, partnerId])
 
   return (
-    <section className="h-[calc(100dvh-4rem)] grid place-items-center">
-      <div className="text-center">
-        <div className="text-7xl font-serif">{counter}</div>
-        <p className="mt-4 text-white/70">Say hi. You’ve got 45 seconds.</p>
+    <section className="h-[calc(100dvh-4rem)] p-3 md:p-6">
+      <div className="h-full rounded-xl ring-1 ring-white/10 p-3 md:p-4 bg-white/5 flex flex-col">
+        <div className="flex items-center justify-between">
+          <div className="font-serif text-xl">LA45</div>
+          <div className="text-3xl font-serif tabular-nums">{counter}</div>
+          <div aria-hidden className="w-10" />
+        </div>
+        <div className="mt-3 flex-1">
+          <VideoGrid roomName={roomName} />
+        </div>
+        <div className="mt-3 flex items-center justify-center gap-3">
+          <button className="px-4 py-2 rounded-md border border-white/20 hover:bg-white/10">Mute</button>
+          <button className="px-4 py-2 rounded-md border border-white/20 hover:bg-white/10">Hide Camera</button>
+          <a href="/after" className="px-4 py-2 rounded-md bg-white text-black hover:opacity-90">End early</a>
+        </div>
       </div>
     </section>
   )
